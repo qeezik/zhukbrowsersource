@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZhukBrowser</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container incognito">
+        <header class="browser-header" style="background: linear-gradient(90deg, #2d1a4d 0%, #181818 100%);">
+            <div class="header-left">
+                <div class="logo">
+                    <i class="fas fa-user-secret" style="color:#b388ff;"></i>
+                    <span style="color:#b388ff;">ZhukBrowser</span>
+                </div>
+            </div>
+            <div class="header-center">
+                <div class="address-bar" style="border-color:#b388ff;">
+                    <div class="security-indicator" id="securityIndicator">
+                        <i class="fas fa-mask" style="color:#b388ff;"></i>
+                    </div>
+                    <input type="text" id="urlInput" placeholder="Введите URL или поисковый запрос" style="color:#b388ff;" />
+                    <button class="refresh-btn" id="refreshBtn" style="color:#b388ff;">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="browser-controls">
+                    
+                </div>
+            </div>
+        </header>
+        <nav class="navigation-bar" style="background: linear-gradient(90deg, #2d1a4d 0%, #181818 100%);">
+            <div class="nav-buttons">
+                <button class="nav-btn" id="backBtn" disabled style="color:#b388ff;">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <button class="nav-btn" id="forwardBtn" disabled style="color:#b388ff;">
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+                <button class="nav-btn" id="homeBtn" style="color:#b388ff;">
+                    <i class="fas fa-home"></i>
+                </button>
+            </div>
+            <div class="nav-tabs" id="navTabs">
+                <div class="tab active incognito" data-tab-id="start">
+                    <i class="fas fa-user-secret"></i>
+                    <span>Инкогнито</span>
+                    <button class="tab-close" data-tab-id="start">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="nav-actions">
+                <button class="nav-btn" id="newTabBtn" style="color:#b388ff;">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </nav>
+        <main class="browser-content" style="background:#18122b;">
+            <div class="tabs-container" id="tabsContainer">
+                <div class="tab-content active incognito" id="start" data-tab-id="start" data-incognito="1">
+                    <div class="start-page incognito" id="startPage"></div>
+                    <webview id="incognitoWebview" style="display:none; width:100%; height:100%;" webpreferences="nodeIntegration=no, contextIsolation=yes, webSecurity=yes"></webview>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div class="settings-page" id="settingsPageIncognito" style="display:none">
+        <div class="settings-container">
+            <div class="settings-sidebar">
+                <div class="settings-nav">
+                    <button class="nav-item active" data-section="security" style="color:#b388ff;"><i class="fas fa-shield-alt"></i><span>Безопасность</span></button>
+                    <button class="nav-item" data-section="general" style="color:#b388ff;"><i class="fas fa-cog"></i><span>Общие</span></button>
+                    <button class="nav-item" data-section="devtools" style="color:#b388ff;"><i class="fas fa-code"></i><span>Для программиста</span></button>
+                </div>
+                <button class="close-settings-btn" id="closeSettingsBtn" style="color:#b388ff;"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="settings-content">
+                <div class="settings-section active" id="security-section">
+                    <h2 style="color:#b388ff;"><i class="fas fa-shield-alt"></i> Безопасность</h2>
+                    <p class="section-description">Защита от угроз и вредоносного контента</p>
+                    <div class="security-options">
+                        <!-- Оставляем только основные опции -->
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="checkFileSafety" checked>
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Проверять безопасность файлов</span>
+                                    <span class="security-desc">Сканировать загружаемые файлы на вирусы</span>
+                                </div>
+                            </label>
+                        </div>
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="checkSiteSafety" checked>
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Проверять безопасность сайтов</span>
+                                    <span class="security-desc">Блокировать доступ к вредоносным сайтам</span>
+                                </div>
+                            </label>
+                        </div>
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="blockAds" checked>
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Блокировать рекламу</span>
+                                    <span class="security-desc">Удалять рекламные блоки с сайтов</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-section" id="general-section">
+                    <h2 style="color:#b388ff;"><i class="fas fa-cog"></i> Общие настройки</h2>
+                    <p class="section-description">Основные настройки браузера</p>
+                    <div class="general-options">
+                        <div class="setting-item">
+                            <label for="searchEngine">Поисковая система:</label>
+                            <select id="searchEngine">
+                                <option value="duckduckgo">DuckDuckGo</option>
+                                <option value="google">Google</option>
+                                <option value="bing">Bing</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label for="autoConnect">
+                                <input type="checkbox" id="autoConnect" checked disabled>
+                                Автоматически подключаться к VPN при запуске (всегда включено)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="vpn-status" id="vpnStatus">
+                        <span class="status-indicator" id="statusIndicator" style="color:#b388ff;">🟣</span>
+                        <span class="status-text" id="statusText" style="color:#b388ff;">VPN включён (инкогнито)</span>
+                    </div>
+                </div>
+                <div class="settings-section" id="devtools-section">
+                    <h2 style="color:#b388ff;"><i class="fas fa-code"></i> Инструменты для программиста</h2>
+                    <div class="devtools-list" style="display:grid;gap:24px;margin-top:24px;">
+                        <div class="devtool-card" style="background:rgba(179,136,255,0.08);border-radius:14px;padding:24px;box-shadow:0 2px 12px rgba(179,136,255,0.06);">
+                            <h3 style="margin-bottom:8px;color:#b388ff;"><i class="fas fa-book"></i> Быстрый доступ к документации</h3>
+                            <p>Открывайте справку по языкам и библиотекам (MDN, DevDocs, Stack Overflow и др.) прямо из браузера.</p>
+                            <button class="open-docs-btn" style="margin-top:10px;color:#b388ff;">Открыть документацию</button>
+                        </div>
+                        <div class="devtool-card" style="background:rgba(179,136,255,0.08);border-radius:14px;padding:24px;box-shadow:0 2px 12px rgba(179,136,255,0.06);">
+                            <h3 style="margin-bottom:8px;color:#b388ff;"><i class="fas fa-file-code"></i> JSON/YAML/CSV Viewer & Formatter</h3>
+                            <p>Просматривайте и форматируйте данные в популярных форматах прямо в браузере.</p>
+                            <button class="open-data-viewer-btn" style="margin-top:10px;color:#b388ff;">Открыть просмотрщик</button>
+                        </div>
+                        <div class="devtool-card" style="background:rgba(179,136,255,0.08);border-radius:14px;padding:24px;box-shadow:0 2px 12px rgba(179,136,255,0.06);">
+                            <h3 style="margin-bottom:8px;color:#b388ff;"><i class="fas fa-layer-group"></i> Расширенный менеджер вкладок</h3>
+                            <p>Управляйте вкладками: группировка, поиск, сохранение сессий, быстрый переход.</p>
+                            <button class="open-tab-manager-btn" style="margin-top:10px;color:#b388ff;">Открыть менеджер вкладок</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-actions">
+                    <button class="save-btn" id="saveSettingsBtn" style="background:#b388ff;color:#18122b;">Сохранить все настройки</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Встроенная защита IP и геолокации -->
+    <script>
+        // Встроенная защита для инкогнито режима
+        (function() {
+            console.log('🛡️ Инициализация встроенной защиты инкогнито...');
+            
+            let fakeIP = null;
+            let protectionEnabled = false;
+            
+            function enableBuiltInProtection() {
+                if (protectionEnabled) return;
+                
+                console.log('🛡️ Включаем встроенную защиту...');
+                
+                // Список фейковых IP адресов
+                const fakeIPs = [
+                    { ip: '8.8.8.8', country: 'US', city: 'Mountain View', timezone: 'America/Los_Angeles' },
+                    { ip: '1.1.1.1', country: 'US', city: 'San Francisco', timezone: 'America/Los_Angeles' },
+                    { ip: '208.67.222.222', country: 'US', city: 'New York', timezone: 'America/New_York' },
+                    { ip: '9.9.9.9', country: 'US', city: 'Chicago', timezone: 'America/Chicago' },
+                    { ip: '185.228.168.9', country: 'GB', city: 'London', timezone: 'Europe/London' },
+                    { ip: '76.76.19.19', country: 'US', city: 'Seattle', timezone: 'America/Los_Angeles' }
+                ];
+                
+                // Выбираем случайный фейковый IP
+                fakeIP = fakeIPs[Math.floor(Math.random() * fakeIPs.length)];
+                
+                // Переопределяем navigator.geolocation
+                if (navigator.geolocation) {
+                    const originalGetCurrentPosition = navigator.geolocation.getCurrentPosition;
+                    const originalWatchPosition = navigator.geolocation.watchPosition;
+                    
+                    navigator.geolocation.getCurrentPosition = function(success, error, options) {
+                        console.log('🛡️ Блокируем запрос геолокации');
+                        if (error) error({ code: 1, message: 'User denied geolocation' });
+                    };
+                    
+                    navigator.geolocation.watchPosition = function(success, error, options) {
+                        console.log('🛡️ Блокируем отслеживание геолокации');
+                        if (error) error({ code: 1, message: 'User denied geolocation' });
+                        return 0;
+                    };
+                }
+                
+                // Блокируем доступ к canvas fingerprinting
+                const originalGetContext = HTMLCanvasElement.prototype.getContext;
+                HTMLCanvasElement.prototype.getContext = function(type, ...args) {
+                    const context = originalGetContext.call(this, type, ...args);
+                    if (context && type === '2d') {
+                        const originalToDataURL = context.toDataURL;
+                        context.toDataURL = function() {
+                            console.log('🛡️ Блокируем canvas fingerprinting');
+                            return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+                        };
+                    }
+                    return context;
+                };
+                
+                // Блокируем доступ к audio fingerprinting
+                if (window.AudioContext || window.webkitAudioContext) {
+                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                    const originalCreateOscillator = AudioContextClass.prototype.createOscillator;
+                    AudioContextClass.prototype.createOscillator = function() {
+                        console.log('🛡️ Блокируем audio fingerprinting');
+                        return null;
+                    };
+                }
+                
+                // Блокируем доступ к WebGL fingerprinting
+                if (window.WebGLRenderingContext) {
+                    const originalGetParameter = WebGLRenderingContext.prototype.getParameter;
+                    WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                        console.log('🛡️ Блокируем WebGL fingerprinting');
+                        return null;
+                    };
+                }
+                
+                protectionEnabled = true;
+                console.log('🛡️ Встроенная защита активирована');
+            }
+            
+            // Включаем защиту сразу
+            enableBuiltInProtection();
+            
+            // Дополнительная защита при загрузке страницы
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('🛡️ Дополнительная защита инкогнито загружена');
+                
+                // Блокируем трекинг через localStorage
+                const originalSetItem = Storage.prototype.setItem;
+                Storage.prototype.setItem = function(key, value) {
+                    if (key.includes('track') || key.includes('analytics') || key.includes('google')) {
+                        console.log('🛡️ Блокируем сохранение трекинга:', key);
+                        return;
+                    }
+                    return originalSetItem.call(this, key, value);
+                };
+                
+                // Блокируем трекинг через cookies
+                document.cookie = 'doNotTrack=1; path=/; max-age=31536000';
+                
+                // Блокируем трекинг через sessionStorage
+                const originalSessionSetItem = sessionStorage.setItem;
+                sessionStorage.setItem = function(key, value) {
+                    if (key.includes('track') || key.includes('analytics')) {
+                        console.log('🛡️ Блокируем sessionStorage трекинг:', key);
+                        return;
+                    }
+                    return originalSessionSetItem.call(this, key, value);
+                };
+            });
+            
+        })();
+    </script>
+
+    <script src="renderer.js"></script>
+    <script>
+        // Инициализация для режима инкогнито
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🛡️ Инициализация режима инкогнито...');
+            
+            // Инициализируем стартовую страницу
+            if (typeof renderStartPage === 'function') {
+                renderStartPage('startPage', '#b388ff');
+            }
+            
+            if (typeof initStartPage === 'function') {
+                initStartPage('start');
+            }
+            
+            // Обновляем кнопки навигации
+            if (typeof updateNavButtons === 'function') {
+                updateNavButtons();
+            }
+            
+            // Обновляем кнопку VPN
+                    if (typeof updateVpnStatus === 'function') {
+            updateVpnStatus();
+        }
+            
+            // Обновляем статус VPN
+            if (typeof updateVpnStatus === 'function') {
+                updateVpnStatus();
+            }
+            
+            console.log('🛡️ Режим инкогнито инициализирован');
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,650 @@
+const { app, BrowserWindow, Menu, session, ipcMain, dialog } = require('electron');
+const path = require('path');
+const { spawn } = require('child_process');
+const UpdateManager = require('./updater');
+const fs = require('fs');
+// const { ProxyAgent } = require('electron-proxy-agent'); // Temporarily disabled
+const userDataPath = app.getPath('userData');
+const titlebarStyleFile = path.join(userDataPath, 'titlebar-style.json');
+// Удалён весь код, связанный с electron-chrome-extensions и автозагрузкой расширений Chrome
+
+let mainWindow = null;
+let shellProcess;
+let incognitoWindow = null;
+let updateManager = null;
+
+function getSavedTitlebarStyle() {
+  try {
+    const data = fs.readFileSync(titlebarStyleFile, 'utf-8');
+    return JSON.parse(data).style || 'macos';
+  } catch {
+    return 'macos';
+  }
+}
+function saveTitlebarStyle(style) {
+  fs.writeFileSync(titlebarStyleFile, JSON.stringify({ style }), 'utf-8');
+}
+
+function createWindow() {
+  const style = getSavedTitlebarStyle();
+  console.log('[ZhukBrowse] Titlebar style:', style, '| frame:', style === 'windows', '| titleBarStyle:', style === 'windows' ? undefined : 'hidden');
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    minWidth: 800,
+    minHeight: 600,
+    title: 'ZhukBrowse - Безопасный браузер',
+    icon: path.join(__dirname, 'assets', 'icon.svg'),
+    webPreferences: {
+      nodeIntegration: false, // Безопасность: отключить Node.js в renderer
+      contextIsolation: true, // Безопасность: изоляция контекста
+      enableRemoteModule: false, // Безопасность: отключить remote
+      webviewTag: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      preload: path.join(__dirname, 'preload.js')
+    },
+    show: false,
+    autoHideMenuBar: true, // Скрываем меню
+    frame: style === 'windows',
+    titleBarStyle: style === 'windows' ? undefined : 'hidden',
+  });
+
+  // Убираем меню полностью
+  Menu.setApplicationMenu(null);
+
+  mainWindow.loadFile('index.html');
+  
+  // Настройка сессии для защиты
+  const mainSession = mainWindow.webContents.session;
+  
+     // Блокируем WebRTC и другие утечки IP полностью
+   mainSession.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
+     // Блокируем STUN/TURN серверы
+     if (details.url.includes('stun:') || details.url.includes('turn:') || 
+         details.url.includes('webrtc') || details.url.includes('rtc') ||
+         details.url.includes('ice') || details.url.includes('peerconnection')) {
+       console.log('Blocked WebRTC request:', details.url);
+       callback({ cancel: true });
+       return;
+     }
+     
+     // Блокируем DNS утечки
+     if (details.url.includes('dns') || details.url.includes('whois') ||
+         details.url.includes('geoip') || details.url.includes('ipinfo')) {
+       console.log('Blocked DNS/IP detection request:', details.url);
+       callback({ cancel: true });
+       return;
+     }
+     
+     callback({});
+   });
+  
+     // Устанавливаем заголовки для всех запросов с реальным IP прокси
+   mainSession.webRequest.onBeforeSendHeaders((details, callback) => {
+     // Получаем текущий прокси из глобальной переменной
+     let proxyIP = '8.8.8.8'; // IP по умолчанию
+     
+     // Приоритет: глобальная переменная с прокси
+     if (global.currentProxy && global.currentProxy.fakeIP) {
+       proxyIP = global.currentProxy.fakeIP; // Это теперь реальный IP прокси
+     }
+     
+           // Заголовки с реальным IP прокси (агрессивная подмена)
+      const proxyHeaders = {
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'X-Forwarded-For': proxyIP,
+        'X-Real-IP': proxyIP,
+        'CF-Connecting-IP': proxyIP,
+        'X-Forwarded-Host': proxyIP,
+        'X-Client-IP': proxyIP,
+        'X-Remote-IP': proxyIP,
+        'X-Remote-Addr': proxyIP,
+        'X-Originating-IP': proxyIP,
+        'X-Cluster-Client-IP': proxyIP,
+        'True-Client-IP': proxyIP,
+        'X-ProxyUser-Ip': proxyIP,
+        'Via': proxyIP,
+        'Forwarded': `for=${proxyIP};by=${proxyIP};host=${proxyIP}`
+      };
+     
+     // Добавляем заголовки с реальным IP прокси
+     details.requestHeaders = { ...details.requestHeaders, ...proxyHeaders };
+     
+     callback({ requestHeaders: details.requestHeaders });
+   });
+  
+  // Убираем блокировку сайтов - оставляем только подмену IP через заголовки
+  
+  // DNS leak blocking disabled
+  
+  // Устанавливаем стабильные заголовки для webview (IP не меняется) - УДАЛЕНО ДУБЛИРОВАНИЕ
+  
+  // Показываем окно только после полной загрузки
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    // mainWindow.webContents.openDevTools(); // Отключено автоматическое открытие DevTools
+    // Инициализируем менеджер обновлений
+    updateManager = new UpdateManager(mainWindow);
+    // Запускаем проверку обновлений при старте
+    updateManager.checkForUpdatesOnStartup();
+  });
+
+  // Обработка ошибок
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('Failed to load:', errorCode, errorDescription);
+  });
+
+  // Добавляем больше отладочной информации
+  mainWindow.webContents.on('dom-ready', () => {
+    console.log('DOM is ready');
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('Page finished loading');
+  });
+
+  // Скачивание файлов
+  mainWindow.webContents.session.on('will-download', (event, item, webContents) => {
+    // Можно задать путь сохранения файла:
+    // item.setSavePath('/path/to/save/file');
+    item.once('done', (event, state) => {
+      if (state === 'completed') {
+        console.log('Download successfully');
+      } else {
+        console.log(`Download failed: ${state}`);
+      }
+    });
+  });
+}
+
+function createIncognitoWindow() {
+  incognitoWindow = new BrowserWindow({
+    width: 1100,
+    height: 750,
+    minWidth: 800,
+    minHeight: 600,
+    title: 'Инкогнито — ZhukBrowse',
+    icon: path.join(__dirname, 'assets', 'icon.svg'),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      enableRemoteModule: false,
+      webviewTag: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      preload: path.join(__dirname, 'preload.js'),
+      partition: 'persist:incognito'
+    },
+    show: false,
+    autoHideMenuBar: true,
+  });
+  Menu.setApplicationMenu(null);
+  incognitoWindow.loadFile('incognito.html');
+  
+  // Настройка сессии для анонимности
+  const incognitoSession = session.fromPartition('persist:incognito');
+  
+     // Блокируем WebRTC и другие утечки IP полностью
+   incognitoSession.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
+     // Блокируем STUN/TURN серверы
+     if (details.url.includes('stun:') || details.url.includes('turn:') || 
+         details.url.includes('webrtc') || details.url.includes('rtc') ||
+         details.url.includes('ice') || details.url.includes('peerconnection')) {
+       console.log('Blocked WebRTC request:', details.url);
+       callback({ cancel: true });
+       return;
+     }
+     
+     // Блокируем DNS утечки
+     if (details.url.includes('dns') || details.url.includes('whois') ||
+         details.url.includes('geoip') || details.url.includes('ipinfo')) {
+       console.log('Blocked DNS/IP detection request:', details.url);
+       callback({ cancel: true });
+       return;
+     }
+     
+     callback({});
+   });
+  
+           // Устанавливаем заголовки для всех запросов с реальным IP прокси
+    incognitoSession.webRequest.onBeforeSendHeaders((details, callback) => {
+      // Получаем текущий прокси из глобальной переменной
+      let proxyIP = '8.8.8.8'; // IP по умолчанию
+      
+      // Приоритет: глобальная переменная с прокси
+      if (global.currentProxy && global.currentProxy.fakeIP) {
+        proxyIP = global.currentProxy.fakeIP; // Это теперь реальный IP прокси
+      }
+      
+             const proxyHeaders = {
+         'Accept-Language': 'en-US,en;q=0.9',
+         'Accept-Encoding': 'gzip, deflate, br',
+         'DNT': '1',
+         'Sec-Fetch-Dest': 'document',
+         'Sec-Fetch-Mode': 'navigate',
+         'Sec-Fetch-Site': 'none',
+         'Sec-Fetch-User': '?1',
+         'Upgrade-Insecure-Requests': '1',
+         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+         'X-Forwarded-For': proxyIP,
+         'X-Real-IP': proxyIP,
+         'CF-Connecting-IP': proxyIP,
+         'X-Forwarded-Host': proxyIP,
+         'X-Client-IP': proxyIP,
+         'X-Remote-IP': proxyIP,
+         'X-Remote-Addr': proxyIP,
+         'X-Originating-IP': proxyIP,
+         'X-Cluster-Client-IP': proxyIP,
+         'True-Client-IP': proxyIP,
+         'X-ProxyUser-Ip': proxyIP,
+         'Via': proxyIP,
+         'Forwarded': `for=${proxyIP};by=${proxyIP};host=${proxyIP}`
+       };
+      
+     // Добавляем заголовки с реальным IP прокси
+     details.requestHeaders = { ...details.requestHeaders, ...proxyHeaders };
+     
+     callback({ requestHeaders: details.requestHeaders });
+   });
+  
+  // Убираем блокировку сайтов - оставляем только подмену IP через заголовки
+  
+  // DNS leak blocking disabled
+  
+  // Устанавливаем стабильные заголовки для webview (IP не меняется) - УДАЛЕНО ДУБЛИРОВАНИЕ
+  
+  incognitoWindow.once('ready-to-show', () => {
+    incognitoWindow.show();
+  });
+  incognitoWindow.on('closed', () => {
+    // Очищаем данные при закрытии инкогнито окна
+    if (incognitoWindow) {
+      incognitoSession.clearStorageData();
+      incognitoSession.clearCache();
+      incognitoSession.clearHostResolverCache();
+      incognitoSession.clearAuthCache();
+    }
+    incognitoWindow = null;
+  });
+}
+
+// IPC для управления прокси/VPN с использованием electron-proxy-agent
+ipcMain.handle('set-proxy', async (event, proxyConfig) => {
+  if (mainWindow) {
+    try {
+      console.log('Setting proxy with HTTP:', proxyConfig);
+      
+      // Создаем HTTP прокси строку с аутентификацией
+      const proxyUrl = `http://${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`;
+      
+             // НЕ устанавливаем системные переменные окружения - только для браузера
+       console.log('Proxy environment variables NOT set - browser only');
+      
+      // Устанавливаем системный прокси для всех соединений (пробуем SOCKS5)
+      const proxyRules = `socks5=${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port};http=${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port};https=${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port};ftp=${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`;
+      
+      // Устанавливаем прокси для основной сессии (все протоколы)
+      await mainWindow.webContents.session.setProxy({ 
+        proxyRules: proxyRules,
+        proxyBypassRules: '<-loopback>' // Исключаем локальные адреса
+      });
+      
+      // Устанавливаем прокси для default session (используется webview) (все протоколы)
+      try {
+        await session.defaultSession.setProxy({ 
+          proxyRules: proxyRules,
+          proxyBypassRules: '<-loopback>'
+        });
+        console.log('Proxy set for default session (webview)');
+      } catch (e) {
+        console.log('Could not set proxy for default session:', e.message);
+      }
+      
+      // Применяем прокси ко всем существующим сессиям
+      try {
+        const allSessions = session.getAllSessions();
+        for (const sess of allSessions) {
+          if (sess !== mainWindow.webContents.session && sess !== session.defaultSession) {
+            await sess.setProxy({ 
+              proxyRules: proxyRules,
+              proxyBypassRules: '<-loopback>'
+            });
+            console.log('Proxy set for additional session');
+          }
+        }
+      } catch (e) {
+        console.log('Could not set proxy for additional sessions:', e.message);
+      }
+      
+             // НЕ устанавливаем системный прокси Windows - только для браузера
+       console.log('Proxy set for browser only - NOT applying to Windows system');
+      
+      // Используем реальный IP прокси вместо фейкового
+      const proxyIPs = {
+        'proxy1': proxyConfig.host,      // Прокси 1: 91.207.183.242:54124
+        'proxy2': proxyConfig.host       // Прокси 2: 94.131.113.168:50738
+      };
+      
+      // Определяем страну по прокси
+      let selectedCountry = proxyConfig.code || 'proxy1';
+      let realProxyIP = proxyIPs[selectedCountry] || proxyConfig.host;
+      
+      // Сохраняем информацию о прокси в main process
+      global.currentProxy = {
+        rules: proxyUrl,
+        country: selectedCountry,
+        fakeIP: realProxyIP, // Используем реальный IP прокси
+        agent: null,
+        config: proxyConfig
+      };
+      
+      console.log('Proxy set successfully with HTTP');
+      console.log('Proxy URL:', proxyUrl);
+      console.log('Real Proxy IP:', realProxyIP);
+      console.log('Country:', selectedCountry);
+      console.log('System environment variables set:', {
+        HTTP_PROXY: process.env.HTTP_PROXY,
+        HTTPS_PROXY: process.env.HTTPS_PROXY
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error setting proxy with HTTP:', error);
+      return false;
+    }
+  }
+  return false;
+});
+
+ipcMain.handle('clear-proxy', async (event) => {
+  if (mainWindow) {
+    try {
+      console.log('Clearing proxy with HTTP');
+      await mainWindow.webContents.session.setProxy({ proxyRules: '' });
+      
+      // Очищаем прокси для default session (webview)
+      try {
+        await session.defaultSession.setProxy({ proxyRules: '' });
+        console.log('Proxy cleared for default session (webview)');
+      } catch (e) {
+        console.log('Could not clear proxy for default session:', e.message);
+      }
+      
+             // НЕ очищаем системные переменные окружения - они не устанавливались
+       console.log('Proxy environment variables NOT cleared - they were not set');
+      
+             // НЕ очищаем системный прокси Windows - он не устанавливался
+       console.log('Windows system proxy NOT cleared - it was not set');
+      
+      // Очищаем глобальную переменную с прокси
+      if (global.currentProxy && global.currentProxy.agent) {
+        // Закрываем ProxyAgent если он существует
+        try {
+          global.currentProxy.agent.destroy();
+        } catch (e) {
+          console.log('Error destroying proxy agent:', e);
+        }
+      }
+      global.currentProxy = null;
+      
+      console.log('Proxy cleared successfully');
+      console.log('System environment variables cleared');
+      return true;
+    } catch (error) {
+      console.error('Error clearing proxy:', error);
+      return false;
+    }
+  }
+  return false;
+});
+
+// Новая функция для отключения прокси с сохранением подмены IP
+ipcMain.handle('clear-proxy-keep-ip', async (event, fakeIP = null) => {
+  console.log('main: clear-proxy-keep-ip called with fakeIP:', fakeIP);
+  if (mainWindow) {
+    try {
+      console.log('Clearing proxy but keeping IP spoofing with simple SOCKS5');
+      await mainWindow.webContents.session.setProxy({ proxyRules: '' });
+      
+      // Закрываем ProxyAgent если он существует
+      if (global.currentProxy && global.currentProxy.agent) {
+        try {
+          global.currentProxy.agent.destroy();
+        } catch (e) {
+          console.log('Error destroying proxy agent:', e);
+        }
+      }
+      
+      // Сохраняем подмену IP даже без прокси
+      if (fakeIP) {
+        global.currentProxy = {
+          rules: '',
+          country: 'direct',
+          fakeIP: fakeIP,
+          agent: null,
+          config: null
+        };
+        console.log('Proxy cleared but IP spoofing kept with:', fakeIP);
+        console.log('global.currentProxy set to:', global.currentProxy);
+      } else {
+        // Используем случайный IP если не передан
+        const randomIP = `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+        global.currentProxy = {
+          rules: '',
+          country: 'direct',
+          fakeIP: randomIP,
+          agent: null,
+          config: null
+        };
+        console.log('Proxy cleared but IP spoofing kept with random IP:', randomIP);
+        console.log('global.currentProxy set to:', global.currentProxy);
+      }
+      
+      console.log('main: clear-proxy-keep-ip completed successfully');
+      return true;
+    } catch (error) {
+      console.error('Error clearing proxy with IP spoofing:', error);
+      return false;
+    }
+  }
+  console.log('main: mainWindow not available');
+  return false;
+});
+
+ipcMain.on('terminal-start', (event) => {
+  if (shellProcess) return;
+  const shell = process.platform === 'win32' ? 'powershell.exe' : (process.env.SHELL || '/bin/bash');
+  shellProcess = spawn(shell, [], { stdio: 'pipe' });
+  shellProcess.stdout.on('data', (data) => {
+    event.sender.send('terminal-output', data.toString());
+  });
+  shellProcess.stderr.on('data', (data) => {
+    event.sender.send('terminal-output', data.toString());
+  });
+  shellProcess.on('exit', (code) => {
+    event.sender.send('terminal-exit', code);
+    shellProcess = null;
+  });
+});
+ipcMain.on('terminal-input', (event, data) => {
+  if (shellProcess) shellProcess.stdin.write(data);
+});
+
+// Очистка системного прокси Windows
+ipcMain.handle('clear-windows-proxy', async (event) => {
+  console.log('main: clear-windows-proxy called');
+  try {
+    // Очищаем прокси через netsh
+    const { exec } = require('child_process');
+    
+    // Сбрасываем настройки прокси Windows
+    await new Promise((resolve, reject) => {
+      exec('netsh winhttp reset proxy', (error, stdout, stderr) => {
+        if (error) {
+          console.log('Error resetting Windows proxy:', error);
+          // Продолжаем выполнение даже при ошибке
+        }
+        resolve();
+      });
+    });
+    
+    // Очищаем переменные окружения
+    delete process.env.HTTP_PROXY;
+    delete process.env.HTTPS_PROXY;
+    delete process.env.http_proxy;
+    delete process.env.https_proxy;
+    
+    // Очищаем прокси в реестре Windows
+    await new Promise((resolve, reject) => {
+      exec('reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f', (error, stdout, stderr) => {
+        if (error) {
+          console.log('Error clearing registry proxy settings:', error);
+          // Продолжаем выполнение даже при ошибке
+        }
+        resolve();
+      });
+    });
+    
+    // Очищаем адрес прокси в реестре
+    await new Promise((resolve, reject) => {
+      exec('reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyServer /t REG_SZ /d "" /f', (error, stdout, stderr) => {
+        if (error) {
+          console.log('Error clearing registry proxy server:', error);
+          // Продолжаем выполнение даже при ошибке
+        }
+        resolve();
+      });
+    });
+    
+    console.log('main: Windows proxy cleared successfully');
+    return true;
+  } catch (error) {
+    console.error('Error clearing Windows proxy:', error);
+    return false;
+  }
+});
+
+ipcMain.on('open-incognito-window', () => {
+  if (!incognitoWindow) createIncognitoWindow();
+  else incognitoWindow.focus();
+});
+
+ipcMain.on('show-context-menu', (event, params) => {
+  const template = [
+    { label: 'Копировать', role: 'copy' },
+    { label: 'Вырезать', role: 'cut' },
+    { label: 'Вставить', role: 'paste' },
+    { type: 'separator' },
+    { label: 'Выделить всё', role: 'selectAll' },
+    { type: 'separator' },
+    { label: 'Перезагрузить страницу', role: 'reload' }
+  ];
+  const menu = Menu.buildFromTemplate(template);
+  const win = BrowserWindow.fromWebContents(event.sender);
+  menu.popup({
+    window: win,
+    x: params && params.x,
+    y: params && params.y
+  });
+});
+
+// IPC обработчик для получения темы браузера
+ipcMain.handle('get-browser-theme', async (event) => {
+  // Получаем тему из localStorage zhukbrowse_theme через webContents
+  const win = BrowserWindow.getFocusedWindow();
+  if (win) {
+    try {
+      const theme = await win.webContents.executeJavaScript('localStorage.getItem("zhukbrowse_theme") || "system"');
+      return theme;
+    } catch (e) {
+      return 'system';
+    }
+  }
+  return 'system';
+});
+
+// IPC обработчики для управления окном из renderer
+ipcMain.on('window-minimize', () => {
+  if (mainWindow) mainWindow.minimize();
+});
+ipcMain.on('window-maximize', () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  }
+});
+ipcMain.on('window-close', () => {
+  if (mainWindow) mainWindow.close();
+});
+
+ipcMain.on('set-titlebar-style', (event, style) => {
+  saveTitlebarStyle(style);
+  app.relaunch();
+  app.exit(0);
+});
+
+ipcMain.handle('get-titlebar-style', () => {
+  return getSavedTitlebarStyle();
+});
+
+// Функция для перезагрузки приложения
+ipcMain.handle('reload-app', () => {
+  if (mainWindow) {
+    mainWindow.reload();
+  }
+  return true;
+});
+
+// Функция для перезагрузки системы
+ipcMain.handle('restart-system', () => {
+  try {
+    const { exec } = require('child_process');
+    exec('shutdown /r /t 0', (error, stdout, stderr) => {
+      if (error) {
+        console.log('Could not restart system:', error.message);
+      } else {
+        console.log('System restart initiated');
+      }
+    });
+    return true;
+  } catch (e) {
+    console.log('Could not restart system:', e.message);
+    return false;
+  }
+});
+
+// Функция для открытия внешних ссылок в системном браузере
+ipcMain.handle('openExternal', async (event, url) => {
+  try {
+    const { shell } = require('electron');
+    await shell.openExternal(url);
+    return true;
+  } catch (e) {
+    console.log('Could not open external URL:', e.message);
+    return false;
+  }
+});
+
+app.whenReady().then(createWindow);
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+    
+  }
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+}); 

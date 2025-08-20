@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Убираем CSP для webview, чтобы избежать предупреждений -->
+    <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https:; font-src 'self' https:; img-src 'self' data: https:; connect-src 'self' https:; frame-src 'self' https:;"> -->
+    <title>ZhukBrowser</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/fontawesome.css">
+    <script>
+        // Fallback для Font Awesome если CDN не загрузился
+        setTimeout(() => {
+            if (!document.querySelector('.fas')) {
+                console.log('Font Awesome not loaded, adding fallback');
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'https://use.fontawesome.com/releases/v6.0.0/css/all.css';
+                document.head.appendChild(link);
+            }
+        }, 2000);
+        
+        // Дополнительная проверка и загрузка Font Awesome
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                const testIcon = document.createElement('i');
+                testIcon.className = 'fas fa-search';
+                testIcon.style.position = 'absolute';
+                testIcon.style.left = '-9999px';
+                document.body.appendChild(testIcon);
+                
+                const computedStyle = window.getComputedStyle(testIcon, ':before');
+                if (!computedStyle.content || computedStyle.content === 'none') {
+                    console.log('Font Awesome not working, loading alternative');
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = 'assets/fontawesome.css';
+                    document.head.appendChild(link);
+                }
+                
+                document.body.removeChild(testIcon);
+            }, 1000);
+        });
+    </script>
+    <script src="assets/crypto-js.min.js"></script>
+    <style>
+.search-section {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  background: rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 12px 16px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.15);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  transition: all 0.3s ease;
+}
+.search-box:focus-within {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(0,255,136,0.4);
+  box-shadow: 0 6px 25px rgba(0,0,0,0.3);
+}
+.search-box input[type="text"] {
+  flex: 1;
+  font-size: 16px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  padding: 6px 0;
+  letter-spacing: 0.3px;
+}
+.search-box input[type="text"]::placeholder {
+  color: rgba(255,255,255,0.5);
+  font-size: 16px;
+  letter-spacing: 0.3px;
+}
+.search-box .search-icon {
+  color: rgba(255,255,255,0.6);
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+.search-box button {
+  background: rgba(0,255,136,0.9);
+  border: none;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,255,136,0.3);
+  color: #000;
+  font-size: 14px;
+  margin-left: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.search-box button:hover {
+  background: rgba(0,255,136,1);
+  box-shadow: 0 4px 12px rgba(0,255,136,0.4);
+  transform: translateY(-1px);
+}
+.search-box button .arrow-icon {
+  color: inherit !important;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+    <!-- кастомная панель больше не вставляется напрямую -->
+    <div class="app-container">
+        <!-- Заголовок браузера -->
+        <header class="browser-header">
+            <div class="header-left">
+                <div class="logo">
+                    <svg class="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                    <span>ZhukBrowser</span>
+                </div>
+            </div>
+            <div class="header-center">
+                <div class="address-bar">
+                    <div class="security-indicator" id="securityIndicator">
+                        <svg class="lock-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <circle cx="12" cy="16" r="1"></circle>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                    </div>
+                    <input type="text" id="urlInput" placeholder="Введите URL или поисковый запрос" />
+                    <button class="refresh-btn" id="refreshBtn">
+                        <svg class="refresh-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                            <path d="M21 3v5h-5"></path>
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                            <path d="M3 21v-5h5"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="header-right">
+                                <div class="browser-controls">
+                    <button class="downloads-btn" id="downloadsBtn" style="background:none;border:none;">
+                        <svg class="download-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7,10 12,15 17,10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                    </button>
+                    <button class="favorites-btn" id="favoritesBtn" title="Избранное" style="background:none;border:none;padding:6px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background 0.2s;">
+                        <svg class="favorites-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="none" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </button>
+                    <button class="settings-btn" id="settingsBtn" title="Настройки" style="background:none;border:none;padding:6px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background 0.2s;">
+                        <svg class="settings-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+        <!-- Панель навигации -->
+        <nav class="navigation-bar">
+            <div class="nav-buttons">
+                <button class="nav-btn" id="backBtn" disabled>
+                    <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12,19 5,12 12,5"></polyline>
+                    </svg>
+                </button>
+                <button class="nav-btn" id="forwardBtn" disabled>
+                    <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12,5 19,12 12,19"></polyline>
+                    </svg>
+                </button>
+                <button class="nav-btn" id="homeBtn">
+                    <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9,22 9,12 15,12 15,22"></polyline>
+                    </svg>
+                </button>
+            </div>
+            <div class="nav-tabs" id="navTabs">
+                <!-- Вкладки будут добавляться динамически -->
+                <div class="tab active" data-tab-id="start">
+                    <svg class="tab-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9,22 9,12 15,12 15,22"></polyline>
+                    </svg>
+                    <span>Стартовая</span>
+                    <!-- Крестик убран -->
+                </div>
+            </div>
+            <!-- Контейнер для иконок расширений -->
+            <div class="nav-extensions" id="navExtensions">
+                <!-- Иконки расширений будут добавляться динамически -->
+            </div>
+            <div class="nav-actions">
+                <button class="nav-btn" id="newTabBtn">
+                    <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+                <button class="nav-btn" id="newIncognitoTabBtn" title="Новая инкогнито-вкладка">
+                    <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="m22 2-4.5 4.5"></path>
+                        <path d="m17.5 2 4.5 4.5"></path>
+                    </svg>
+                </button>
+            </div>
+        </nav>
+        <!-- Основная область браузера -->
+        <main class="browser-content">
+            <!-- Контейнер для вкладок -->
+            <div class="tabs-container" id="tabsContainer">
+                <!-- Стартовая страница -->
+                <div class="tab-content active" id="start" data-tab-id="start">
+                    <div class="start-page" id="startPage">
+                        <!-- Содержимое будет добавлено динамически через JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Кнопка галереи фонов (только на стартовой странице и новых вкладках) -->
+        <div class="background-gallery-btn" id="backgroundGalleryBtn" style="display: none;">
+            <button class="gallery-btn" onclick="openBackgroundGallery()" title="Галерея фонов">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21,15 16,10 5,21"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Страница настроек -->
+    <div class="settings-page" id="settingsPageMain" style="display:none">
+        <div class="settings-container">
+            <div class="settings-sidebar">
+                <div class="settings-nav">
+                    <button class="nav-item active" data-section="security">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        <span>Безопасность</span>
+                    </button>
+                    <button class="nav-item" data-section="downloads">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7,10 12,15 17,10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span>Загрузки</span>
+                    </button>
+                    <button class="nav-item" data-section="history">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3v5h5"></path>
+                            <path d="M3 8c0 6.627 5.373 12 12 12s12-5.373 12-12"></path>
+                        </svg>
+                        <span>История</span>
+                    </button>
+                    <button class="nav-item" data-section="general">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <span>Общие</span>
+                    </button>
+                    <!-- Вкладка темы -->
+                    <button class="nav-item" data-section="customization">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5"></circle>
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+                        </svg>
+                        <span>Кастомизация</span>
+                    </button>
+                    <button class="nav-item" data-section="favorites">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="none" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        <span>Избранное</span>
+                    </button>
+                    <button class="nav-item" data-section="extensions">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="3"/>
+                            <path d="M9 9h6v6H9z"/>
+                        </svg>
+                        <span>Расширения</span>
+                    </button>
+                    <button class="nav-item" data-section="profile">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        <span>Профиль</span>
+                    </button>
+                </div>
+                <button class="close-settings-btn" id="closeSettingsBtn">
+                    <svg class="close-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="settings-content">
+                <!-- Безопасность -->
+                <div class="settings-section active" id="security-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg> Безопасность</h2>
+                    <p class="section-description">Защита от угроз и вредоносного контента</p>
+                    
+                    <div class="security-options">
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="checkFileSafety" checked>
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Проверять безопасность файлов</span>
+                                    <span class="security-desc">Сканировать загружаемые файлы на вирусы</span>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="antiPhishing" checked>
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Антифишинг банковских карт</span>
+                                    <span class="security-desc">Защита от фишинговых сайтов</span>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="secureBanking" checked>
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Защищенный режим для банков</span>
+                                    <span class="security-desc">Открывать банковские сайты в изолированном режиме</span>
+                                </div>
+                            </label>
+                        </div>
+                        
+
+                        
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="secureDNS" checked>
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Безопасный DNS</span>
+                                    <span class="security-desc">Использовать защищенные DNS-серверы</span>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="security-item">
+                            <div class="security-info">
+                                <span class="security-title">Системный прокси Windows</span>
+                                <span class="security-desc">Очистить настройки прокси в системе Windows</span>
+                            </div>
+                            <button class="clear-windows-proxy-btn" id="clearWindowsProxyBtn">
+                                <svg class="action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 6h18"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                                Очистить системный прокси
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Загрузки -->
+                <div class="settings-section" id="downloads-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7,10 12,15 17,10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg> Загрузки</h2>
+                    <p class="section-description">Управление загруженными файлами</p>
+                    
+                    <div class="downloads-list" id="downloadsList">
+                        <!-- Загрузки будут добавляться динамически -->
+                    </div>
+                    
+                    <div class="downloads-actions">
+                        <button class="clear-downloads-btn" id="clearDownloadsBtn">
+                            <svg class="action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                            </svg> Очистить историю загрузок
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- История -->
+                <div class="settings-section" id="history-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 3v5h5"></path>
+                        <path d="M3 8c0 6.627 5.373 12 12 12s12-5.373 12-12"></path>
+                    </svg> История</h2>
+                    <p class="section-description">История посещений сайтов</p>
+                    <div class="history-search" style="margin-bottom:16px;display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="historySearchInput" placeholder="Поиск по истории..." style="flex:1;padding:10px 14px;border-radius:8px;border:1px solid #333;background:#232323;color:#fff;font-size:15px;outline:none;" />
+                        <button id="historySearchClearBtn" style="padding:10px 16px;border-radius:8px;border:none;background:#444;color:#fff;cursor:pointer;font-size:15px;">✕</button>
+                    </div>
+                    <div class="history-list" id="historyList">
+                        <!-- История будет добавляться динамически -->
+                    </div>
+                    <div class="history-actions">
+                        <button class="clear-history-btn" id="clearHistoryBtn">
+                            <svg class="action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                            </svg> Очистить историю
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Общие настройки -->
+                <div class="settings-section" id="general-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg> Общие настройки</h2>
+                    <p class="section-description">Основные настройки браузера</p>
+                    
+                    <div class="general-options">
+                        <div class="setting-item">
+                            <label for="searchEngine">Поисковая система:</label>
+                            <select id="searchEngine">
+                                <option value="duckduckgo">DuckDuckGo</option>
+                                <option value="google">Google</option>
+                                <option value="bing">Bing</option>
+                            </select>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label for="saveTabs">
+                                <input type="checkbox" id="saveTabs" checked>
+                                Сохранять открытые вкладки при закрытии
+                            </label>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                <!-- Секция кастомизации -->
+                <div class="settings-section" id="customization-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg> Кастомизация</h2>
+                    <p class="section-description">Выберите оформление, тему и цвет браузера</p>
+                    <div class="theme-chooser">
+                        <label class="theme-option">
+                            <input type="radio" name="themeMode" value="light">
+                            <div class="theme-preview theme-preview-light"></div>
+                            <span>Светлая</span>
+                        </label>
+                        <label class="theme-option">
+                            <input type="radio" name="themeMode" value="dark">
+                            <div class="theme-preview theme-preview-dark"></div>
+                            <span>Тёмная</span>
+                        </label>
+                        <label class="theme-option">
+                            <input type="radio" name="themeMode" value="system">
+                            <div class="theme-preview theme-preview-system"></div>
+                            <span>Как в системе</span>
+                        </label>
+                    </div>
+                    <div class="titlebar-style-chooser" style="margin-top:18px;display:flex;gap:18px;align-items:center;">
+                        <span style="font-size:15px;font-weight:500;min-width:90px;">Стиль панели:</span>
+                        <label class="titlebar-style-option">
+                            <input type="radio" name="titlebarStyle" value="macos" checked>
+                            <div class="titlebar-style-preview" style="width:48px;height:18px;display:flex;align-items:center;justify-content:flex-end;background:#232323;border-radius:6px;box-shadow:0 1px 4px #0002;gap:4px;padding:0 6px;">
+                                <div style="width:12px;height:12px;border-radius:50%;background:#ff5f56;"></div>
+                                <div style="width:12px;height:12px;border-radius:50%;background:#f4c025;"></div>
+                                <div style="width:12px;height:12px;border-radius:50%;background:#27c93f;"></div>
+                            </div>
+                            <span style="font-size:13px;margin-top:4px;">macOS</span>
+                        </label>
+                        <label class="titlebar-style-option">
+                            <input type="radio" name="titlebarStyle" value="windows">
+                            <div class="titlebar-style-preview" style="width:48px;height:18px;display:flex;align-items:center;justify-content:flex-end;background:#f3f3f3;border-radius:4px;box-shadow:0 1px 4px #0002;gap:2px;padding:0 4px;">
+                                <div style="width:12px;height:12px;border-radius:2px;background:#e0e0e0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#222;">&#8212;</div>
+                                <div style="width:12px;height:12px;border-radius:2px;background:#e0e0e0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#222;">&#9633;</div>
+                                <div style="width:12px;height:12px;border-radius:2px;background:#e57373;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;">&#10005;</div>
+                            </div>
+                            <span style="font-size:13px;margin-top:4px;">Windows</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Секция избранного -->
+                <div class="settings-section" id="favorites-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="none" stroke="currentColor" stroke-width="2"/></svg> Избранное</h2>
+                    <p class="section-description">Ваши избранные сайты</p>
+                    <div class="favorites-list" id="favoritesList">
+                        <!-- Избранные сайты будут добавляться динамически -->
+                    </div>
+                    <div class="favorites-actions">
+                        <button class="clear-favorites-btn" id="clearFavoritesBtn" style="background:#232323;color:#ff4444;border:none;padding:12px 24px;border-radius:10px;font-size:15px;font-weight:500;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px #0002;transition:background 0.2s;cursor:pointer;margin:18px auto 0 auto;">
+                            <svg class="action-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                            </svg>
+                            <span>Очистить все избранные</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Секция расширений -->
+                <div class="settings-section" id="extensions-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="3"/>
+                        <path d="M9 9h6v6H9z"/>
+                    </svg> Расширения</h2>
+                    <p class="section-description">Управление расширениями браузера</p>
+                    
+                    <div class="extensions-content">
+                        <div class="extensions-info">
+                            <p style="text-align: center; color: rgba(255, 255, 255, 0.7); font-size: 16px; margin-bottom: 30px;">
+                                Установленные расширения будут отображаться здесь
+                            </p>
+                        </div>
+                        
+                        <div class="extensions-actions">
+                            <button class="extension-store-btn" id="extensionStoreBtn" style="background:linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);color:#000;border:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;display:flex;align-items:center;gap:12px;box-shadow:0 4px 15px rgba(0, 255, 136, 0.3);transition:all 0.3s ease;cursor:pointer;margin:24px auto 0 auto;">
+                                <svg class="action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7,10 12,15 17,10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                <span>Перейти в магазин расширений</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Профиль -->
+                <div class="settings-section" id="profile-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg> Профиль</h2>
+                    <p class="section-description">Управление профилем и подпиской</p>
+                    
+                    <div class="profile-content">
+                        <div class="profile-header">
+                            <div class="profile-avatar-container">
+                                <div class="profile-avatar" id="profileAvatar">
+                                    <svg class="avatar-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                        <circle cx="12" cy="7" r="4"/>
+                                    </svg>
+                                </div>
+                                <button class="change-avatar-btn" id="changeAvatarBtn">
+                                    <svg class="change-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                                        <circle cx="12" cy="13" r="4"/>
+                                    </svg>
+                                    Изменить
+                                </button>
+                            </div>
+                            <div class="profile-info">
+                                <h3 class="profile-name">Пользователь</h3>
+                                <p class="profile-status" id="profileStatus">Бесплатный аккаунт</p>
+                            </div>
+                        </div>
+                        
+                        <div class="subscription-section">
+                            <div class="subscription-card">
+                                <div class="subscription-header">
+                                    <h3>ZhukPlus</h3>
+                                    <div class="subscription-badge">Премиум</div>
+                                </div>
+                                <div class="subscription-features">
+                                    <div class="feature-item">
+                                        <svg class="feature-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="20,6 9,17 4,12"/>
+                                        </svg>
+                                        <span>Эксклюзивные фоны</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <svg class="feature-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="20,6 9,17 4,12"/>
+                                        </svg>
+                                        <span>Премиум расширения</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <svg class="feature-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="20,6 9,17 4,12"/>
+                                        </svg>
+                                        <span>Приоритетная поддержка</span>
+                                    </div>
+                                </div>
+                                <div class="subscription-price">
+                                    <span class="price">299 ₽</span>
+                                    <span class="period">/месяц</span>
+                                </div>
+                                <button class="subscribe-btn" id="subscribeBtn">
+                                    <svg class="subscribe-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                    Подписаться на ZhukPlus
+                                </button>
+                                <button class="unsubscribe-btn" id="unsubscribeBtn" style="display: none;">
+                                    <svg class="unsubscribe-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                    Отменить подписку
+                                </button>
+                                <button class="payment-history-btn" id="paymentHistoryBtn" style="
+                                    width: 100%; padding: 12px 16px; margin-top: 12px;
+                                    background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
+                                    border-radius: 8px; color: #fff; cursor: pointer; font-size: 14px;
+                                    display: flex; align-items: center; justify-content: center; gap: 8px;
+                                    transition: all 0.3s ease;
+                                ">
+                                    <svg class="history-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M3 3v5h5"></path>
+                                        <path d="M3 8c0 6.627 5.373 12 12 12s12-5.373 12-12"></path>
+                                    </svg>
+                                    История платежей
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+
+                
+                <!-- Удалена вкладка и секция 'Обновления' по просьбе пользователя -->
+                
+
+                
+                <div class="settings-actions">
+                    <button class="save-btn" id="saveSettingsBtn">Сохранить все настройки</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Встроенная защита для основного браузера -->
+    <script>
+        // Встроенная защита для основного браузера
+        (function() {
+            console.log('🛡️ Инициализация защиты основного браузера...');
+            
+            let fakeIP = null;
+            let protectionEnabled = false;
+            
+            function enableMainBrowserProtection() {
+                if (protectionEnabled) return;
+                
+                console.log('🛡️ Включаем защиту основного браузера...');
+                
+                // Список фейковых IP адресов
+                const fakeIPs = [
+                    { ip: '8.8.8.8', country: 'US', city: 'Mountain View', timezone: 'America/Los_Angeles' },
+                    { ip: '1.1.1.1', country: 'US', city: 'San Francisco', timezone: 'America/Los_Angeles' },
+                    { ip: '208.67.222.222', country: 'US', city: 'New York', timezone: 'America/New_York' },
+                    { ip: '104.16.124.96', country: 'US', city: 'San Francisco', timezone: 'America/Los_Angeles' }
+                ];
+                fakeIP = fakeIPs[Math.floor(Math.random() * fakeIPs.length)];
+                
+                // Блокируем WebRTC для предотвращения утечек IP
+                if (window.RTCPeerConnection) {
+                    window.RTCPeerConnection = function() {
+                        throw new Error('WebRTC is disabled for security');
+                    };
+                }
+                
+                // Блокируем медиа API
+                if (navigator.mediaDevices) {
+                    if (navigator.mediaDevices.getUserMedia) {
+                        navigator.mediaDevices.getUserMedia = function() {
+                            return Promise.reject(new Error('Media access is disabled'));
+                        };
+                    }
+                    if (navigator.mediaDevices.getDisplayMedia) {
+                        navigator.mediaDevices.getDisplayMedia = function() {
+                            return Promise.reject(new Error('Screen sharing is disabled'));
+                        };
+                    }
+                }
+                
+                // Подменяем fetch для блокировки IP-детекторов
+                const originalFetch = window.fetch;
+                window.fetch = function(url, options) {
+                    const urlString = typeof url === 'string' ? url : url.toString();
+                    const ipDetectionServices = [
+                        'ip-api.com', 'whatismyipaddress.com',
+                        'whatismyip.com', 'ipleak.net', 'browserleaks.com', 'whoer.net',
+                        'myip.com', 'ip.me', 'jsonip.com', 'httpbin.org/ip', 'freegeoip.app',
+                        'ipapi.co', 'ipgeolocation.io', 'ipstack.com', 'ipapi.com',
+                        'ipqualityscore.com', 'ip2location.com', 'maxmind.com', 'ipregistry.co',
+                        'abstractapi.com', 'ipgeolocationapi.com', 'ipapi.is', 'ipdata.co',
+                        'wtfismyip.com', 'dnsleaktest.com', 'dnsleak.com'
+                    ];
+                    
+                    return originalFetch.call(this, url, options);
+                };
+                
+                // Подменяем XMLHttpRequest
+                const originalXHROpen = XMLHttpRequest.prototype.open;
+                XMLHttpRequest.prototype.open = function(method, url, ...args) {
+                    const ipDetectionServices = [
+                        'ip-api.com', 'whatismyipaddress.com',
+                        'whatismyip.com', 'ipleak.net', 'browserleaks.com', 'whoer.net',
+                        'freegeoip.app', 'ipapi.co', 'ipgeolocation.io', 'ipstack.com',
+                        'ipapi.com', 'ipqualityscore.com', 'ip2location.com', 'maxmind.com',
+                        'ipregistry.co', 'abstractapi.com', 'ipgeolocationapi.com', 'ipapi.is',
+                        'ipdata.co', 'wtfismyip.com', 'dnsleaktest.com', 'dnsleak.com'
+                    ];
+                    
+                    return originalXHROpen.call(this, method, url, ...args);
+                };
+                
+                // Подменяем геолокацию
+                if (navigator.geolocation) {
+                    const fakeGeolocation = {
+                        getCurrentPosition: function(success, error, options) {
+                            const fakePosition = {
+                                coords: {
+                                    latitude: 37.7749 + (Math.random() - 0.5) * 0.1,
+                                    longitude: -122.4194 + (Math.random() - 0.5) * 0.1,
+                                    accuracy: 100 + Math.random() * 900,
+                                    altitude: null,
+                                    altitudeAccuracy: null,
+                                    heading: null,
+                                    speed: null
+                                },
+                                timestamp: Date.now()
+                            };
+                            setTimeout(() => success(fakePosition), 100);
+                        },
+                        watchPosition: function(success, error, options) {
+                            const fakePosition = {
+                                coords: {
+                                    latitude: 37.7749 + (Math.random() - 0.5) * 0.1,
+                                    longitude: -122.4194 + (Math.random() - 0.5) * 0.1,
+                                    accuracy: 100 + Math.random() * 900,
+                                    altitude: null,
+                                    altitudeAccuracy: null,
+                                    heading: null,
+                                    speed: null
+                                },
+                                timestamp: Date.now()
+                            };
+                            setTimeout(() => success(fakePosition), 100);
+                            return Math.floor(Math.random() * 1000000);
+                        },
+                        clearWatch: function(watchId) {}
+                    };
+                    
+                    Object.defineProperty(navigator, 'geolocation', {
+                        get: () => fakeGeolocation,
+                        configurable: true
+                    });
+                }
+                
+                // Подменяем timezone
+                const originalResolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+                Intl.DateTimeFormat.prototype.resolvedOptions = function() {
+                    const options = originalResolvedOptions.call(this);
+                    options.timeZone = fakeIP.timezone;
+                    return options;
+                };
+                
+                // Подменяем User Agent
+                Object.defineProperty(navigator, 'userAgent', {
+                    get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    configurable: true
+                });
+                
+                // Подменяем язык
+                Object.defineProperty(navigator, 'language', {
+                    get: () => 'en-US',
+                    configurable: true
+                });
+                
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en'],
+                    configurable: true
+                });
+                
+                // Блокируем canvas fingerprinting
+                const originalGetContext = HTMLCanvasElement.prototype.getContext;
+                HTMLCanvasElement.prototype.getContext = function(type, ...args) {
+                    const context = originalGetContext.call(this, type, ...args);
+                    if (type === '2d') {
+                        const originalToDataURL = context.toDataURL;
+                        context.toDataURL = function() {
+                            // Возвращаем пустой canvas
+                            return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+                        };
+                    }
+                    return context;
+                };
+                
+                protectionEnabled = true;
+                console.log('🛡️ Защита основного браузера включена с IP:', fakeIP.ip);
+                
+                // Обновляем индикатор безопасности
+                const securityIndicator = document.getElementById('securityIndicator');
+                if (securityIndicator) {
+                    securityIndicator.innerHTML = '<i class="fas fa-shield-alt" style="color:#00ff88;"></i>';
+                    securityIndicator.title = 'Защита активна - IP: ' + fakeIP.ip;
+                }
+            }
+            
+            // Автоматическое включение защиты
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', enableMainBrowserProtection);
+            } else {
+                enableMainBrowserProtection();
+            }
+            
+            // Экспортируем функцию для внешнего вызова
+            window.enableMainBrowserProtection = enableMainBrowserProtection;
+            
+        })();
+    </script>
+    
+    <script src="renderer.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('index.html: DOMContentLoaded');
+            
+            // Инициализируем стартовую страницу с задержкой
+            setTimeout(() => {
+                if (typeof window.renderStartPage === 'function') {
+                    console.log('Calling renderStartPage...');
+                    window.renderStartPage('startPage', '#00ff88');
+                } else {
+                    console.error('renderStartPage function not found!');
+                }
+            }, 100);
+            
+            // Принудительно включаем защиту
+            if (typeof window.enableMainBrowserProtection === 'function') {
+                console.log('Forcing main browser protection...');
+                window.enableMainBrowserProtection();
+            }
+            
+            // Инициализируем защиту основного браузера
+            if (typeof window.initializeMainBrowserSecurity === 'function') {
+                console.log('Initializing main browser security...');
+                window.initializeMainBrowserSecurity();
+            }
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест галереи фонов</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-button {
+            background: #00ff88;
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .test-button:hover {
+            background: #00cc6a;
+        }
+    </style>
+</head>
+<body>
+    <h1>Тест галереи фонов</h1>
+    <button class="test-button" onclick="testGallery()">Открыть галерею фонов</button>
+    <button class="test-button" onclick="testSetBg()">Установить тестовый фон</button>
+    
+    <script>
+        // Простая функция для тестирования
+        function testGallery() {
+            if (typeof openBackgroundGallery === 'function') {
+                openBackgroundGallery();
+            } else {
+                alert('Функция openBackgroundGallery не найдена!');
+            }
+        }
+        
+        function testSetBg() {
+            if (typeof setMainBg === 'function') {
+                setMainBg('linear-gradient(135deg, #667eea 0%, #764ba2 100%)');
+                alert('Фон установлен!');
+            } else {
+                alert('Функция setMainBg не найдена!');
+            }
+        }
+    </script>
+    
+    <script src="renderer.js"></script>
+</body>
+</html> 

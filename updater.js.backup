@@ -1,0 +1,181 @@
+const { autoUpdater } = require('electron-updater');
+const { app, dialog, ipcMain } = require('electron');
+
+class UpdateManager {
+  constructor(mainWindow) {
+    this.mainWindow = mainWindow;
+    this.isUpdateAvailable = false;
+    this.isUpdateDownloaded = false;
+    
+    // Настройка автообновления
+    autoUpdater.autoDownload = false; // Не скачиваем автоматически
+    autoUpdater.autoInstallOnAppQuit = true; // Устанавливаем при закрытии
+    
+    this.setupEventHandlers();
+    this.setupIPC();
+  }
+
+  setupEventHandlers() {
+    // Проверка обновлений
+    autoUpdater.on('checking-for-update', () => {
+      console.log('Проверка обновлений...');
+      this.sendStatusToWindow('checking-for-update', 'Проверка обновлений...');
+    });
+
+    // Обновление доступно
+    autoUpdater.on('update-available', (info) => {
+      console.log('Обновление доступно:', info);
+      this.isUpdateAvailable = true;
+      this.sendStatusToWindow('update-available', 'Доступно обновление', info);
+      
+      // Показываем диалог пользователю
+      this.showUpdateDialog(info);
+    });
+
+    // Обновление недоступно
+    autoUpdater.on('update-not-available', (info) => {
+      console.log('Обновление недоступно:', info);
+      this.sendStatusToWindow('update-not-available', 'Обновление недоступно', info);
+    });
+
+    // Ошибка при проверке
+    autoUpdater.on('error', (err) => {
+      console.error('Ошибка автообновления:', err);
+      this.sendStatusToWindow('error', 'Ошибка при проверке обновлений', err.message);
+    });
+
+    // Прогресс скачивания
+    autoUpdater.on('download-progress', (progressObj) => {
+      const logMessage = `Скорость: ${progressObj.bytesPerSecond} - Загружено: ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
+      console.log(logMessage);
+      this.sendStatusToWindow('download-progress', 'Загрузка обновления...', progressObj);
+    });
+
+    // Обновление загружено
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log('Обновление загружено:', info);
+      this.isUpdateDownloaded = true;
+      this.sendStatusToWindow('update-downloaded', 'Обновление загружено', info);
+      
+      // Показываем диалог установки
+      this.showInstallDialog(info);
+    });
+  }
+
+  setupIPC() {
+    // IPC обработчики для управления обновлениями
+    ipcMain.handle('check-for-updates', async () => {
+      try {
+        await autoUpdater.checkForUpdates();
+        return { success: true };
+      } catch (error) {
+        console.error('Ошибка при проверке обновлений:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('download-update', async () => {
+      try {
+        if (this.isUpdateAvailable) {
+          await autoUpdater.downloadUpdate();
+          return { success: true };
+        } else {
+          return { success: false, error: 'Обновление недоступно' };
+        }
+      } catch (error) {
+        console.error('Ошибка при загрузке обновления:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('install-update', async () => {
+      try {
+        if (this.isUpdateDownloaded) {
+          autoUpdater.quitAndInstall();
+          return { success: true };
+        } else {
+          return { success: false, error: 'Обновление не загружено' };
+        }
+      } catch (error) {
+        console.error('Ошибка при установке обновления:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('get-update-status', () => {
+      return {
+        isUpdateAvailable: this.isUpdateAvailable,
+        isUpdateDownloaded: this.isUpdateDownloaded
+      };
+    });
+  }
+
+  sendStatusToWindow(event, message, data = null) {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('update-status', {
+        event,
+        message,
+        data,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  showUpdateDialog(info) {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+
+    dialog.showMessageBox(this.mainWindow, {
+      type: 'info',
+      title: 'Доступно обновление',
+      message: `Доступна новая версия ZhukBrowse (${info.version})`,
+      detail: `Текущая версия: ${app.getVersion()}\nНовая версия: ${info.version}\n\nХотите загрузить обновление?`,
+      buttons: ['Загрузить', 'Позже', 'Отмена'],
+      defaultId: 0,
+      cancelId: 2
+    }).then((result) => {
+      if (result.response === 0) {
+        // Пользователь выбрал "Загрузить"
+        autoUpdater.downloadUpdate();
+      }
+    });
+  }
+
+  showInstallDialog(info) {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+
+    dialog.showMessageBox(this.mainWindow, {
+      type: 'info',
+      title: 'Обновление готово',
+      message: 'Обновление загружено и готово к установке',
+      detail: `Версия ${info.version} будет установлена при перезапуске приложения.\n\nХотите перезапустить сейчас?`,
+      buttons: ['Перезапустить', 'Позже'],
+      defaultId: 0
+    }).then((result) => {
+      if (result.response === 0) {
+        // Пользователь выбрал "Перезапустить"
+        autoUpdater.quitAndInstall();
+      }
+    });
+  }
+
+  // Метод для ручной проверки обновлений
+  async checkForUpdates() {
+    try {
+      console.log('Запуск проверки обновлений...');
+      await autoUpdater.checkForUpdates();
+    } catch (error) {
+      console.error('Ошибка при проверке обновлений:', error);
+      this.sendStatusToWindow('error', 'Ошибка при проверке обновлений', error.message);
+    }
+  }
+
+  // Метод для автоматической проверки при запуске
+  async checkForUpdatesOnStartup() {
+    // Ждем немного после запуска приложения
+    setTimeout(async () => {
+      await this.checkForUpdates();
+    }, 3000);
+  }
+}
+
+module.exports = UpdateManager; 

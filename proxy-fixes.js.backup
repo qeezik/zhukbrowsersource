@@ -1,0 +1,109 @@
+// Исправления для прокси - убираем все блокировки IP и исправляем SOCKS5 на HTTP
+
+// 1. Исправляем статус VPN
+function updateVpnStatus() {
+    const statusIndicator = document.getElementById('statusIndicator');
+    const statusText = document.getElementById('statusText');
+    if (statusIndicator && statusText) {
+        if (settings.proxyEnabled && settings.selectedCountry !== 'none') {
+            const country = proxyServers[settings.selectedCountry];
+            statusIndicator.textContent = '🟢';
+            statusIndicator.className = 'status-indicator connected';
+            statusText.textContent = `VPN (HTTP) подключен к ${country.flag} ${country.name}`;
+            statusIndicator.style.animation = 'none';
+            setTimeout(() => {
+                statusIndicator.style.animation = 'pulse-green 2s infinite';
+            }, 10);
+        } else {
+            statusIndicator.textContent = '🔴';
+            statusIndicator.className = 'status-indicator';
+            statusText.textContent = 'VPN отключен';
+            statusIndicator.style.animation = 'none';
+            setTimeout(() => {
+                statusIndicator.style.animation = 'pulse 2s infinite';
+            }, 10);
+        }
+    }
+}
+
+// 2. Исправляем функцию подключения прокси
+async function tryConnectProxy(proxy) {
+    showNotification(`Проверка ${proxy.type.toUpperCase()}-прокси...`);
+    // Формируем строку для прокси (с авторизацией, если есть)
+    let proxyString = '';
+    if (proxy.user && proxy.pass) {
+        proxyString = `http://${proxy.user}:${proxy.pass}@${proxy.host}:${proxy.port}`;
+    } else {
+        proxyString = `http://${proxy.host}:${proxy.port}`;
+    }
+    if (window.electronAPI?.setProxy) {
+        await window.electronAPI.setProxy(proxyString);
+        await new Promise(r => setTimeout(r, 2000));
+        let ip = null;
+        let googleOk = false;
+        try {
+            const resp = await fetch('https://httpbin.org/ip', { cache: 'no-store' });
+            if (resp.ok) {
+                const data = await resp.json();
+                ip = data.origin;
+            }
+        } catch (e) {}
+        try {
+            const resp = await fetch('https://www.google.com', { cache: 'no-store' });
+            if (resp.ok) googleOk = true;
+        } catch (e) {}
+        if (ip && googleOk) {
+            settings.proxyEnabled = true;
+            settings.selectedCountry = proxy.code;
+            settings.proxyHost = proxy.host;
+            settings.proxyPort = proxy.port;
+            settings.flag = proxy.flag || getFlag(proxy.code);
+            localStorage.setItem('zhukbrowse_settings', JSON.stringify(settings));
+            updateProxyButton();
+            updateVpnStatus();
+            showNotification(`VPN (HTTP) подключен: ${proxy.country} (IP: ${ip})`);
+            closeAllTabsExceptStart();
+            createTab('https://httpbin.org/ip', `${proxy.country} IP`);
+        } else {
+            await window.electronAPI.clearProxy();
+            showNotification('HTTP-прокси не работает. VPN отключён. Попробуйте другой!');
+            settings.proxyEnabled = false;
+            settings.selectedCountry = 'none';
+            updateProxyButton();
+            updateVpnStatus();
+        }
+    }
+}
+
+// 3. Отключаем все блокировки IP
+function enableIPAndLocationSpoofing() {
+    // Функция отключена - никаких блокировок IP
+    console.log('IP spoofing disabled - no IP blocking');
+}
+
+// 4. Отключаем защиту webview
+function applyIncognitoProtectionToWebview(webview) {
+    if (!webview) return;
+    
+    // Функция отключена - никаких блокировок IP
+    console.log('Incognito protection disabled - no IP blocking');
+}
+
+// 5. Отключаем защиту основного браузера
+function applyMainBrowserProtectionToWebview(webview) {
+    if (!webview) return;
+    
+    // Функция отключена - никаких блокировок IP
+    console.log('Main browser protection disabled - no IP blocking');
+}
+
+// 6. Отключаем инициализацию безопасности
+function initializeIncognitoSecurity() {
+    // Функция отключена - никаких блокировок IP
+    console.log('Incognito security disabled - no IP blocking');
+}
+
+function initializeMainBrowserSecurity() {
+    // Функция отключена - никаких блокировок IP
+    console.log('Main browser security disabled - no IP blocking');
+} 

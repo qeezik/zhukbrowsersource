@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест защиты - ZhukBrowse</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #b388ff;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: rgba(179, 136, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(179, 136, 255, 0.2);
+        }
+        .test-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .test-item:last-child {
+            border-bottom: none;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: rgba(0, 255, 0, 0.2);
+            color: #00ff88;
+        }
+        .status.error {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff4444;
+        }
+        .status.warning {
+            background: rgba(255, 165, 0, 0.2);
+            color: #ffaa00;
+        }
+        button {
+            background: #b388ff;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #9c7ae6;
+        }
+        .result {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ Тест защитных механизмов ZhukBrowse</h1>
+        
+        <div class="test-section">
+            <h3>🌐 IP и геолокация</h3>
+            <div class="test-item">
+                <span>IP адрес</span>
+                <span class="status" id="ipStatus">Проверяется...</span>
+            </div>
+            <div class="test-item">
+                <span>Геолокация</span>
+                <span class="status" id="geoStatus">Проверяется...</span>
+            </div>
+            <div class="test-item">
+                <span>Часовой пояс</span>
+                <span class="status" id="timezoneStatus">Проверяется...</span>
+            </div>
+            <div class="test-item">
+                <span>Язык браузера</span>
+                <span class="status" id="languageStatus">Проверяется...</span>
+            </div>
+            <button onclick="testIPAndLocation()">Проверить заново</button>
+            <div class="result" id="ipResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔒 WebRTC и медиа</h3>
+            <div class="test-item">
+                <span>WebRTC</span>
+                <span class="status" id="webrtcStatus">Проверяется...</span>
+            </div>
+            <div class="test-item">
+                <span>Доступ к камере</span>
+                <span class="status" id="cameraStatus">Проверяется...</span>
+            </div>
+            <div class="test-item">
+                <span>Доступ к микрофону</span>
+                <span class="status" id="micStatus">Проверяется...</span>
+            </div>
+            <div class="test-item">
+                <span>Доступ к экрану</span>
+                <span class="status" id="screenStatus">Проверяется...</span>
+            </div>
+            <button onclick="testWebRTC()">Проверить заново</button>
+            <div class="result" id="webrtcResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🎨 Fingerprinting</h3>
+            <div class="test-item">
+                <span>Canvas fingerprinting</span>
+                <span class="status" id="canvasStatus">Проверяется...</span>
+            </div>
+            <div class="test-item">
+                <span>WebGL fingerprinting</span>
+                <span class="status" id="webglStatus">Проверяется...</span>
+            </div>
+            <div class="test-item">
+                <span>Audio fingerprinting</span>
+                <span class="status" id="audioStatus">Проверяется...</span>
+            </div>
+            <div class="test-item">
+                <span>User Agent</span>
+                <span class="status" id="uaStatus">Проверяется...</span>
+            </div>
+            <button onclick="testFingerprinting()">Проверить заново</button>
+            <div class="result" id="fingerprintResult"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🚫 Блокировка трекеров</h3>
+            <div class="test-item">
+                <span>IP детекторы</span>
+                <span class="status" id="ipDetectorStatus">Проверяется...</span>
+            </div>
+            <div class="test-item">
+                <span>DNS утечки</span>
+                <span class="status" id="dnsStatus">Проверяется...</span>
+            </div>
+            <button onclick="testTrackerBlocking()">Проверить заново</button>
+            <div class="result" id="trackerResult"></div>
+        </div>
+        
+        <button onclick="runAllTests()" style="background: #00ff88; color: #1a1a2e; width: 100%; margin-top: 20px;">
+            🚀 Запустить все тесты
+        </button>
+    </div>
+
+    <script>
+        // Тест IP и геолокации
+        async function testIPAndLocation() {
+            const result = document.getElementById('ipResult');
+            result.textContent = 'Тестирование...\n';
+            
+            try {
+                // Тест IP
+                const ipResponse = await fetch('https://ipinfo.io/json');
+                const ipData = await ipResponse.json();
+                
+                const ipStatus = document.getElementById('ipStatus');
+                if (ipData.ip === '8.8.8.8' || ipData.ip === '1.1.1.1' || ipData.ip === '208.67.222.222') {
+                    ipStatus.textContent = '✅ Защищен';
+                    ipStatus.className = 'status success';
+                } else {
+                    ipStatus.textContent = '❌ Не защищен';
+                    ipStatus.className = 'status error';
+                }
+                
+                result.textContent += `IP: ${ipData.ip}\nСтрана: ${ipData.country}\nГород: ${ipData.city}\n`;
+                
+                // Тест геолокации
+                const geoStatus = document.getElementById('geoStatus');
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const coords = position.coords;
+                            if (coords.latitude > 37.5 && coords.latitude < 38.0 &&
+                                coords.longitude > -122.5 && coords.longitude < -122.3) {
+                                geoStatus.textContent = '✅ Защищен';
+                                geoStatus.className = 'status success';
+                            } else {
+                                geoStatus.textContent = '❌ Не защищен';
+                                geoStatus.className = 'status error';
+                            }
+                            result.textContent += `Геолокация: ${coords.latitude}, ${coords.longitude}\n`;
+                        },
+                        (error) => {
+                            geoStatus.textContent = '✅ Заблокирован';
+                            geoStatus.className = 'status success';
+                            result.textContent += `Геолокация заблокирована: ${error.message}\n`;
+                        }
+                    );
+                }
+                
+                // Тест часового пояса
+                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const timezoneStatus = document.getElementById('timezoneStatus');
+                if (timezone.includes('America/') || timezone.includes('Europe/')) {
+                    timezoneStatus.textContent = '✅ Защищен';
+                    timezoneStatus.className = 'status success';
+                } else {
+                    timezoneStatus.textContent = '❌ Не защищен';
+                    timezoneStatus.className = 'status error';
+                }
+                result.textContent += `Часовой пояс: ${timezone}\n`;
+                
+                // Тест языка
+                const language = navigator.language;
+                const languageStatus = document.getElementById('languageStatus');
+                if (language === 'en-US') {
+                    languageStatus.textContent = '✅ Защищен';
+                    languageStatus.className = 'status success';
+                } else {
+                    languageStatus.textContent = '❌ Не защищен';
+                    languageStatus.className = 'status error';
+                }
+                result.textContent += `Язык: ${language}\n`;
+                
+            } catch (error) {
+                result.textContent += `Ошибка: ${error.message}\n`;
+            }
+        }
+        
+        // Тест WebRTC
+        function testWebRTC() {
+            const result = document.getElementById('webrtcResult');
+            result.textContent = 'Тестирование...\n';
+            
+            // Тест WebRTC
+            const webrtcStatus = document.getElementById('webrtcStatus');
+            try {
+                new RTCPeerConnection();
+                webrtcStatus.textContent = '❌ Не заблокирован';
+                webrtcStatus.className = 'status error';
+                result.textContent += 'WebRTC доступен\n';
+            } catch (error) {
+                webrtcStatus.textContent = '✅ Заблокирован';
+                webrtcStatus.className = 'status success';
+                result.textContent += `WebRTC заблокирован: ${error.message}\n`;
+            }
+            
+            // Тест камеры
+            const cameraStatus = document.getElementById('cameraStatus');
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(() => {
+                        cameraStatus.textContent = '❌ Доступен';
+                        cameraStatus.className = 'status error';
+                        result.textContent += 'Камера доступна\n';
+                    })
+                    .catch((error) => {
+                        cameraStatus.textContent = '✅ Заблокирован';
+                        cameraStatus.className = 'status success';
+                        result.textContent += `Камера заблокирована: ${error.message}\n`;
+                    });
+            }
+            
+            // Тест микрофона
+            const micStatus = document.getElementById('micStatus');
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(() => {
+                        micStatus.textContent = '❌ Доступен';
+                        micStatus.className = 'status error';
+                        result.textContent += 'Микрофон доступен\n';
+                    })
+                    .catch((error) => {
+                        micStatus.textContent = '✅ Заблокирован';
+                        micStatus.className = 'status success';
+                        result.textContent += `Микрофон заблокирован: ${error.message}\n`;
+                    });
+            }
+            
+            // Тест экрана
+            const screenStatus = document.getElementById('screenStatus');
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                navigator.mediaDevices.getDisplayMedia()
+                    .then(() => {
+                        screenStatus.textContent = '❌ Доступен';
+                        screenStatus.className = 'status error';
+                        result.textContent += 'Экран доступен\n';
+                    })
+                    .catch((error) => {
+                        screenStatus.textContent = '✅ Заблокирован';
+                        screenStatus.className = 'status success';
+                        result.textContent += `Экран заблокирован: ${error.message}\n`;
+                    });
+            }
+        }
+        
+        // Тест fingerprinting
+        function testFingerprinting() {
+            const result = document.getElementById('fingerprintResult');
+            result.textContent = 'Тестирование...\n';
+            
+            // Тест Canvas
+            const canvasStatus = document.getElementById('canvasStatus');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.textBaseline = 'top';
+            ctx.font = '14px Arial';
+            ctx.fillText('Test', 2, 2);
+            const canvasFingerprint = canvas.toDataURL();
+            
+            if (canvasFingerprint.includes('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==')) {
+                canvasStatus.textContent = '✅ Защищен';
+                canvasStatus.className = 'status success';
+                result.textContent += 'Canvas fingerprinting заблокирован\n';
+            } else {
+                canvasStatus.textContent = '❌ Не защищен';
+                canvasStatus.className = 'status error';
+                result.textContent += `Canvas fingerprint: ${canvasFingerprint.substring(0, 100)}...\n`;
+            }
+            
+            // Тест WebGL
+            const webglStatus = document.getElementById('webglStatus');
+            const canvas2 = document.createElement('canvas');
+            const gl = canvas2.getContext('webgl');
+            if (gl) {
+                const vendor = gl.getParameter(gl.VENDOR);
+                const renderer = gl.getParameter(gl.RENDERER);
+                if (vendor === 'Intel Inc.' && renderer === 'Intel Iris OpenGL Engine') {
+                    webglStatus.textContent = '✅ Защищен';
+                    webglStatus.className = 'status success';
+                    result.textContent += 'WebGL fingerprinting заблокирован\n';
+                } else {
+                    webglStatus.textContent = '❌ Не защищен';
+                    webglStatus.className = 'status error';
+                    result.textContent += `WebGL: ${vendor} - ${renderer}\n`;
+                }
+            }
+            
+            // Тест User Agent
+            const uaStatus = document.getElementById('uaStatus');
+            const ua = navigator.userAgent;
+            if (ua.includes('Chrome/120') && ua.includes('Windows NT 10.0')) {
+                uaStatus.textContent = '✅ Защищен';
+                uaStatus.className = 'status success';
+                result.textContent += 'User Agent подменен\n';
+            } else {
+                uaStatus.textContent = '❌ Не защищен';
+                uaStatus.className = 'status error';
+                result.textContent += `User Agent: ${ua}\n`;
+            }
+            
+            // Тест Audio (упрощенный)
+            const audioStatus = document.getElementById('audioStatus');
+            audioStatus.textContent = '⚠️ Требует тестирования';
+            audioStatus.className = 'status warning';
+            result.textContent += 'Audio fingerprinting требует дополнительного тестирования\n';
+        }
+        
+        // Тест блокировки трекеров
+        async function testTrackerBlocking() {
+            const result = document.getElementById('trackerResult');
+            result.textContent = 'Тестирование...\n';
+            
+            // Тест IP детекторов
+            const ipDetectorStatus = document.getElementById('ipDetectorStatus');
+            const testUrls = [
+                'https://ip-api.com/json',
+                'https://ipinfo.io/json',
+                'https://api.ipify.org?format=json'
+            ];
+            
+            let blockedCount = 0;
+            for (const url of testUrls) {
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    if (data.ip === '8.8.8.8' || data.ip === '1.1.1.1' || data.ip === '208.67.222.222') {
+                        blockedCount++;
+                    }
+                } catch (error) {
+                    blockedCount++;
+                }
+            }
+            
+            if (blockedCount === testUrls.length) {
+                ipDetectorStatus.textContent = '✅ Заблокированы';
+                ipDetectorStatus.className = 'status success';
+                result.textContent += 'Все IP детекторы заблокированы\n';
+            } else {
+                ipDetectorStatus.textContent = '❌ Частично заблокированы';
+                ipDetectorStatus.className = 'status error';
+                result.textContent += `Заблокировано ${blockedCount}/${testUrls.length} детекторов\n`;
+            }
+            
+            // Тест DNS утечек
+            const dnsStatus = document.getElementById('dnsStatus');
+            dnsStatus.textContent = '⚠️ Требует специального тестирования';
+            dnsStatus.className = 'status warning';
+            result.textContent += 'DNS утечки требуют специального тестирования\n';
+        }
+        
+        // Запуск всех тестов
+        function runAllTests() {
+            testIPAndLocation();
+            testWebRTC();
+            testFingerprinting();
+            testTrackerBlocking();
+        }
+        
+        // Автоматический запуск при загрузке
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 1000);
+        });
+    </script>
+</body>
+</html> 
